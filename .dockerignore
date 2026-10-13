@@ -1,0 +1,17 @@
+
+.gitignore
+
+__pycache__/
+*.pyc
+
+venv/
+
+.agents/
+
+.vscode/
+
+node_modules/
+
+docker-compose.yml
+
+.env
