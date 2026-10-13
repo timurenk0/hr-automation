@@ -16,3 +16,10 @@ build/
 
 .coverage
 htmlcov/
+
+.vscode/
+
+.agents/
+
+# typescript
+*.tsbuildinfo

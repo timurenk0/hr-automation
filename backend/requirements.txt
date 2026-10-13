@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg[binary]
+alembic
+pytest
+httpx
+pydantic-settings
+python-dotenv
+pyright[nodejs]==1.1.411
+
+# user register & auth
+
+pyjwt
+email-validator
