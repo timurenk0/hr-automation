@@ -1,3 +1,3 @@
 # hr-automation
 
-test
+telegram notifications bot test
