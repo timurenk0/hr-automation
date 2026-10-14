@@ -25,15 +25,16 @@ jobs:
         run: |
           if [ "$EVENT" = "push" ]; then
             TEXT="📦 New push to $REPO
-          Branch: $REF
-          By: $ACTOR
+          🪾 Branch: $REF
+          👤 By: $ACTOR
           Commit: https://github.com/$REPO/commit/$SHA
           $COMMIT_MSG"
           else
             TEXT="🔀 Pull request updated
           Repository: $REPO
           PR #$PR_NUMBER: $PR_TITLE
-          By: $ACTOR
+          👤 By: $ACTOR
+          Commit: https://github.com/$REPO/commit/$SHA
           $PR_URL"
           fi
 
