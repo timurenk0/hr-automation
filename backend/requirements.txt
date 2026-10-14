@@ -8,6 +8,8 @@ httpx
 pydantic-settings
 python-dotenv
 pyright[nodejs]==1.1.411
+scrapling
+scrapling[fetchers]
 
 # user register & auth
 
