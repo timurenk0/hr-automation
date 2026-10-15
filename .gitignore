@@ -9,8 +9,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-backend/scrapper/data
-backend/core/**/data
+**/data
 
 node_modules/
 .next/
