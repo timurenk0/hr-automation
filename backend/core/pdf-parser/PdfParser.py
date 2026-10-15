@@ -1,9 +1,19 @@
 from pypdf import PdfReader
 from pathlib import Path
+from dataclasses import dataclass
+
+
+@dataclass
+class LinkStorage:
+    reddit: str | None = None
+    linkedin: str | None = None
+    github: str | None = None
+
 
 class PDFParser:
     def __init__(self, filepath: str):
         self.reader = self.__load_pdf(filepath)
+        self.linkStorage = LinkStorage()
 
     @staticmethod
     def __load_pdf(filepath: str) -> Path:
@@ -28,7 +38,7 @@ class PDFParser:
             raise ValueError(f"Invalid PDF filepath: {filepath}") from e
 
 
-    def parse(self) -> str:
+    def parse(self) -> LinkStorage:
         pages = self.reader.get_num_pages()
 
         key = '/Annots'
@@ -48,7 +58,12 @@ class PDFParser:
                     if uri in u[ank].keys():
                         links.append(u[ank][uri])
 
-        return [l for l in links if "linkedin" in l][0]
+        for link in links:
+            for field in self.linkStorage.__dataclass_fields__:
+                if field in link.lower():
+                    setattr(self.linkStorage, field, link)
+        
+        return self.linkStorage
         
 
 pdf = PDFParser("data/cv.pdf").parse()
