@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+# from routes import health
 
 app = FastAPI(
     title="hr-automation"
@@ -16,3 +17,9 @@ app = FastAPI(
 #     allow_headers=["*"],
 # )
 
+# app.include_router(health)
+
+
+@app.get("/")
+async def root():
+    return { "message": "hello from backend" }
