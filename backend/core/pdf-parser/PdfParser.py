@@ -3,7 +3,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class LinkStorage:
     reddit: str | None = None
     linkedin: str | None = None
