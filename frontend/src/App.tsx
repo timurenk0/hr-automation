@@ -1,6 +1,10 @@
+import FileUpload from "./COMPONENTS/FileUpload"
+
 const App = () => {
   return (
-    <div>Hello World</div>
+    <>
+      <FileUpload />
+    </>
   )
 }
 
