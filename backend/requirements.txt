@@ -10,6 +10,7 @@ python-dotenv
 pyright[nodejs]==1.1.411
 scrapling
 pypdf
+python-multipart
 
 # user register & auth
 
