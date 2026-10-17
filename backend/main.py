@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-# from routes import health
+from routes import registerRoutes
 
 app = FastAPI(
     title="hr-automation"
@@ -17,8 +17,7 @@ app = FastAPI(
 #     allow_headers=["*"],
 # )
 
-# app.include_router(health)
-
+registerRoutes(app)
 
 @app.get("/")
 async def root():
