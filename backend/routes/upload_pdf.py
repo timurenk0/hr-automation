@@ -11,8 +11,8 @@ async def uploadPDF(pdf: UploadFile = File(...)):
 
     pdfStream = BytesIO(pdfBytes)
 
-    content = PDFParser(pdfStream).parse()
+    result = PDFParser(pdfStream).parse()
 
-    print("content:", content)
+    print("result:", result)
     
-    return asdict(content)
+    return asdict(result)

@@ -11,10 +11,17 @@ class LinkStorage:
     github: str | None = None
 
 
+@dataclass(slots=True)
+class ExtractData:
+    links: LinkStorage | None = None
+    content: str = ""
+
+
 class PDFParser:
     def __init__(self, file: str | BytesIO):
         self.reader = self.__load_pdf(file)
         self.linkStorage = LinkStorage()
+        self.extractData = ExtractData()
 
     @staticmethod
     def __load_pdf(file: str | BytesIO) -> Path:
@@ -42,7 +49,7 @@ class PDFParser:
             raise ValueError(f"Invalid PDF filepath: {file}") from e
 
 
-    def parse(self) -> LinkStorage:
+    def parse(self) -> ExtractData:
         pages = self.reader.get_num_pages()
 
         key = '/Annots'
@@ -50,9 +57,12 @@ class PDFParser:
         ank = '/A'
 
         links = []
+        content = ""
 
         for page in range(pages):
             pageObject = self.reader.get_page(page).get_object()
+            content += pageObject.extract_text()
+
 
             if key in pageObject.keys():
                 ann = pageObject[key]
@@ -67,8 +77,12 @@ class PDFParser:
                 if field in link.lower():
                     setattr(self.linkStorage, field, link)
         
-        return self.linkStorage
+
+        setattr(self.extractData, "links", self.linkStorage)
+        setattr(self.extractData, "content", content)
+        
+        return self.extractData
         
 
-# pdf = PDFParser("data/cv.pdf").parse()
-# print("Linked link:", pdf)
+pdf = PDFParser("data/cv.pdf").parse()
+print("Extract Object:", pdf)
