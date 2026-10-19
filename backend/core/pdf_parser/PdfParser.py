@@ -2,6 +2,8 @@ from pypdf import PdfReader
 from pathlib import Path
 from dataclasses import dataclass
 from io import BytesIO
+import re
+import unicodedata
 
 
 @dataclass(slots=True)
@@ -20,17 +22,17 @@ class ExtractData:
 class PDFParser:
     def __init__(self, file: str | BytesIO):
         self.reader = self.__load_pdf(file)
-        self.linkStorage = LinkStorage()
-        self.extractData = ExtractData()
+        self.link_storage = LinkStorage()
+        self.extract_data = ExtractData()
 
     @staticmethod
-    def __load_pdf(file: str | BytesIO) -> Path:
+    def __load_pdf(file: str | BytesIO) -> PdfReader:
         try:
             if isinstance(file, BytesIO):
                 return PdfReader(file)
-            
+
             basepath = Path(__file__).resolve().parent
-            
+
             path = Path(basepath / file).resolve(strict=True)
 
             if not path.is_file():
@@ -39,7 +41,7 @@ class PDFParser:
             if path.suffix.lower() != ".pdf":
                 raise ValueError("Provided file is not PDF")
 
-            reader = PdfReader(str(path), strict=True) 
+            reader = PdfReader(str(path), strict=True)
 
             if reader.is_encrypted:
                 raise ValueError("Encrypted PDFs are not supported")
@@ -48,24 +50,46 @@ class PDFParser:
         except (OSError, ValueError, Exception) as e:
             raise ValueError(f"Invalid PDF filepath: {file}") from e
 
+    @staticmethod
+    def __normalize_text(text: str) -> str:
+        if not text:
+            return ""
+
+        text = unicodedata.normalize("NFC", text)
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        text = text.replace("\u00a0", " ")  # Non-breaking space
+        text = text.replace("\u200b", "")  # Zero-width space
+
+        normalized_lines = []
+
+        for line in text.split("\n"):
+            line = re.sub(r"[ \t\f\v]+", " ", line).strip()
+
+            if not line:
+                if normalized_lines and normalized_lines[-1] != "":
+                    normalized_lines.append("")
+                continue
+
+            normalized_lines.append(line)
+
+        return "\n".join(normalized_lines).strip()
 
     def parse(self) -> ExtractData:
         pages = self.reader.get_num_pages()
 
-        key = '/Annots'
-        uri = '/URI'
-        ank = '/A'
+        key = "/Annots"
+        uri = "/URI"
+        ank = "/A"
 
         links = []
-        content = ""
+        content_parts = []
 
         for page in range(pages):
-            pageObject = self.reader.get_page(page).get_object()
-            content += pageObject.extract_text()
+            page_object = self.reader.get_page(page).get_object()
+            content_parts.append(page_object.extract_text() or "")
 
-
-            if key in pageObject.keys():
-                ann = pageObject[key]
+            if key in page_object.keys():
+                ann = page_object[key]
 
                 for a in ann:
                     u = a.get_object()
@@ -73,16 +97,17 @@ class PDFParser:
                         links.append(u[ank][uri])
 
         for link in links:
-            for field in self.linkStorage.__dataclass_fields__:
+            for field in self.link_storage.__dataclass_fields__:
                 if field in link.lower():
-                    setattr(self.linkStorage, field, link)
-        
+                    setattr(self.link_storage, field, link)
 
-        setattr(self.extractData, "links", self.linkStorage)
-        setattr(self.extractData, "content", content)
-        
-        return self.extractData
-        
+        content = self.__normalize_text("\n\n".join(content_parts))
+
+        setattr(self.extract_data, "links", self.link_storage)
+        setattr(self.extract_data, "content", content)
+
+        return self.extract_data
+
 
 pdf = PDFParser("data/cv.pdf").parse()
 print("Extract Object:", pdf)
