@@ -1,18 +1,15 @@
 from fastapi import File, UploadFile
 from routes.router import router
 from io import BytesIO
-from core.pdf_parser.PdfParser import PDFParser
-from dataclasses import asdict
+from services.parse_cv import parse_cv
 
 
 @router.post("/upload-pdf")
 async def uploadPDF(pdf: UploadFile = File(...)):
-    pdfBytes = await pdf.read()
+    pdf_bytes = await pdf.read()
 
-    pdfStream = BytesIO(pdfBytes)
+    pdf_stream = BytesIO(pdf_bytes)
 
-    result = PDFParser(pdfStream).parse()
+    result = parse_cv(pdf_stream)
 
-    print("result:", result)
-    
-    return asdict(result)
+    return result
