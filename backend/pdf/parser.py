@@ -2,9 +2,14 @@ from pypdf import PdfReader
 from pathlib import Path
 from dataclasses import dataclass
 from io import BytesIO
-import re
-import unicodedata
+# import re
+# import unicodedata
 
+
+# the parser's platform-keyed links will need conversion into link records
+# in the service. 
+
+# we will need to change a bit parser.
 
 @dataclass(slots=True)
 class LinkStorage:
