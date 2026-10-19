@@ -50,30 +50,6 @@ class PDFParser:
         except (OSError, ValueError, Exception) as e:
             raise ValueError(f"Invalid PDF filepath: {file}") from e
 
-    @staticmethod
-    def __normalize_text(text: str) -> str:
-        if not text:
-            return ""
-
-        text = unicodedata.normalize("NFC", text)
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
-        text = text.replace("\u00a0", " ")  # Non-breaking space
-        text = text.replace("\u200b", "")  # Zero-width space
-
-        normalized_lines = []
-
-        for line in text.split("\n"):
-            line = re.sub(r"[ \t\f\v]+", " ", line).strip()
-
-            if not line:
-                if normalized_lines and normalized_lines[-1] != "":
-                    normalized_lines.append("")
-                continue
-
-            normalized_lines.append(line)
-
-        return "\n".join(normalized_lines).strip()
-
     def parse(self) -> ExtractData:
         pages = self.reader.get_num_pages()
 
@@ -82,11 +58,11 @@ class PDFParser:
         ank = "/A"
 
         links = []
-        content_parts = []
+        content = ""
 
         for page in range(pages):
             page_object = self.reader.get_page(page).get_object()
-            content_parts.append(page_object.extract_text() or "")
+            content += page_object.extract_text()
 
             if key in page_object.keys():
                 ann = page_object[key]
@@ -100,8 +76,6 @@ class PDFParser:
             for field in self.link_storage.__dataclass_fields__:
                 if field in link.lower():
                     setattr(self.link_storage, field, link)
-
-        content = self.__normalize_text("\n\n".join(content_parts))
 
         setattr(self.extract_data, "links", self.link_storage)
         setattr(self.extract_data, "content", content)
