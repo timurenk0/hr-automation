@@ -5,7 +5,10 @@ import { useMutation } from "@tanstack/react-query";
 
 const FileUpload = () => {
     const [file, setFile] = useState<File | null>(null);
-    const [fileContent, setFileContent] = useState({});
+    const [fileContent, setFileContent] = useState({
+        links: {},
+        content: ""
+    });
 
     const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -58,10 +61,12 @@ const FileUpload = () => {
         <p>File Size: {file ? `${(file.size/1000/1000).toFixed(2)} MB` : 0}</p>
 
         <ul>
-            {Object.entries(fileContent).map(([k, v]) => (
+            {Object.entries(fileContent.links).map(([k, v]) => (
                 <li key={k}><b>{k}</b>: {v ? <a target="_blank" className="underline text-sky-500" href={String(v)}>{String(v)}</a> : "Not found"}</li>
             ))}
         </ul>
+
+        {fileContent.content}
     </div>
   )
 }
