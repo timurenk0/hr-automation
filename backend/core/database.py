@@ -3,7 +3,7 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from .config import get_settings
+from core.config import get_settings
 
 
 # Use postgresql+psycopg://user:password@host:5432/database in DATABASE_URL.
