@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from routes.router import router
-from routes import health, upload_pdf
+from pdf.router import router
+
+# from routes import health
 
 
 def registerRoutes(app: FastAPI) -> None:

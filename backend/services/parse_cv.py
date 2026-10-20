@@ -1,7 +1,8 @@
 from io import BytesIO
-from core.pdf_parser.PdfParser import PDFParser
+from pdf.parser import PDFParser
 from utility.text_normalizer import normalize_text
-from dataclasses import asdict
+
+# from dataclasses import asdict
 
 
 def parse_cv(file_byte_stream: BytesIO):
