@@ -109,5 +109,5 @@ class PDFParser:
         return ExtractData(links=links, content=content)
 
 
-# pdf = PDFParser("data/cv2.pdf").parse()
-# print("Extract Object:", pdf.links)
+pdf = PDFParser("data/cv2.pdf").parse()
+print("Extract Object:", pdf.links)
