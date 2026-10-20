@@ -1,34 +1,32 @@
 from pypdf import PdfReader
 from pathlib import Path
 from dataclasses import dataclass
+from typing import Literal
 from io import BytesIO
-# import re
-# import unicodedata
-
+import re
 
 # the parser's platform-keyed links will need conversion into link records
-# in the service. 
+# in the service.
 
 # we will need to change a bit parser.
 
+
 @dataclass(slots=True)
-class LinkStorage:
-    reddit: str | None = None
-    linkedin: str | None = None
-    github: str | None = None
+class ExtractedLink:
+    url: str
+    platform: str | None = None
+    category: str | None = None
 
 
 @dataclass(slots=True)
 class ExtractData:
-    links: LinkStorage | None = None
+    links: list[ExtractedLink]
     content: str = ""
 
 
 class PDFParser:
     def __init__(self, file: str | BytesIO):
         self.reader = self.__load_pdf(file)
-        self.link_storage = LinkStorage()
-        self.extract_data = ExtractData()
 
     @staticmethod
     def __load_pdf(file: str | BytesIO) -> PdfReader:
@@ -55,38 +53,61 @@ class PDFParser:
         except (OSError, ValueError, Exception) as e:
             raise ValueError(f"Invalid PDF filepath: {file}") from e
 
-    def parse(self) -> ExtractData:
-        pages = self.reader.get_num_pages()
-
-        key = "/Annots"
-        uri = "/URI"
-        ank = "/A"
-
+    def extract_links(self, page_object) -> list[str]:
         links = []
+
+        annotations = page_object.get("/Annots")
+        if not annotations:
+            return links
+
+        for annotation_ref in annotations:
+            annotation = annotation_ref.get_object()
+
+            if annotation.get("/Subtype") != "/Link":
+                continue
+
+            action = annotation.get("/A")
+            if not action:
+                continue
+
+            if action.get("/S") != "/URI":
+                continue
+
+            uri = action.get("/URI")
+
+            if uri:
+
+                # Disregard email adresses as external links
+                if "mailto" in uri:
+                    continue
+
+                # Disregard phone numbers as external links
+                if "tel" in uri:
+                    continue
+
+                platform = uri.split("/")[2]
+
+                links.append(ExtractedLink(url=str(uri), platform=platform))
+
+        return links
+
+    def parse(self) -> ExtractData:
         content = ""
+        links: list[ExtractedLink] = []
+        seen_urls: set[str] = set()
 
-        for page in range(pages):
-            page_object = self.reader.get_page(page).get_object()
-            content += page_object.extract_text()
+        for page in self.reader.pages:
+            content += page.extract_text() or ""
 
-            if key in page_object.keys():
-                ann = page_object[key]
+            for link in self.extract_links(page):
+                normalized_link = link.url.lower().strip()
 
-                for a in ann:
-                    u = a.get_object()
-                    if uri in u[ank].keys():
-                        links.append(u[ank][uri])
+                if normalized_link and normalized_link not in seen_urls:
+                    seen_urls.add(normalized_link)
+                    links.append(link)
 
-        for link in links:
-            for field in self.link_storage.__dataclass_fields__:
-                if field in link.lower():
-                    setattr(self.link_storage, field, link)
-
-        setattr(self.extract_data, "links", self.link_storage)
-        setattr(self.extract_data, "content", content)
-
-        return self.extract_data
+        return ExtractData(links=links, content=content)
 
 
-pdf = PDFParser("data/cv.pdf").parse()
-print("Extract Object:", pdf)
+# pdf = PDFParser("data/cv2.pdf").parse()
+# print("Extract Object:", pdf.links)
