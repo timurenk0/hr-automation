@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from platform_handlers.github_handler import fetch_profile_data
+from platform_handlers.github_handler import fetch_profile_data, fetch_repo
 import requests
 
 
@@ -15,7 +15,8 @@ async def github_handler(url: str, is_repo: bool):
     if is_repo:
         repo_name = url.split("/")[4]
 
-        repo_response = requests.get(f"{API_URL}/repos/{username}/{repo_name}")
+        repo_response = await fetch_repo(username, repo_name)
+
         return repo_response
 
     user_response = await fetch_profile_data(username)

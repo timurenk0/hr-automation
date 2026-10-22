@@ -21,9 +21,10 @@ async def fetch_profile_data(username: str):
     repos_data = [
         {
             "name": repo["name"],
-            "description": repo["description"],
+            "description": repo["description"] or None,
             "stars": repo["stargazers_count"],
             "language": repo["language"],
+            "topics": repo["topics"] or None,
         }
         for repo in repos_response
     ]
@@ -32,4 +33,14 @@ async def fetch_profile_data(username: str):
 
 
 async def fetch_repo(username: str, repo_name: str):
-    pass
+    repo_response = requests.get(f"{API_URL}/repos/{username}/{repo_name}")
+    repo_response.raise_for_status()
+    repo_response = repo_response.json()
+
+    repo_languages_response = requests.get(
+        f"{API_URL}/repos/{username}/{repo_name}/languages"
+    )
+    repo_languages_response.raise_for_status()
+    repo_languages_data = repo_languages_response.json()
+
+    return {"languages": repo_languages_data, "topics": repo_response["topics"] or None}
