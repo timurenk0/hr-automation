@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from core.exception_handlers import error_responses, register_exception_handlers
 from routes.router import router
 
 app = FastAPI(
-    title="hr-automation"
+    title="hr-automation",
+    responses=error_responses(),
 )
+
+register_exception_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,

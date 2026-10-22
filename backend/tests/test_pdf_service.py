@@ -6,6 +6,11 @@ from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from pdf.exceptions import (
+    PDFEmptyUploadError, PDFEncryptedError, PDFInvalidError,
+    PDFInvalidFilenameError, PDFPersistenceError,
+)
+
 
 @pytest.fixture
 def context(monkeypatch):
@@ -88,7 +93,7 @@ def test_empty_input_never_reaches_parser_or_repository(context, monkeypatch, fi
     parser, create = Mock(), Mock()
     monkeypatch.setattr("pdf.service.PDFParser", parser)
     monkeypatch.setattr(repository, "create", create)
-    with pytest.raises(ValueError):
+    with pytest.raises(PDFInvalidFilenameError if not filename.strip() else PDFEmptyUploadError):
         service.create_document(filename, data)
     parser.assert_not_called()
     create.assert_not_called()
@@ -101,7 +106,7 @@ def test_invalid_pdf_produces_no_writes(context, make_pdf, monkeypatch, encrypte
     create = Mock()
     monkeypatch.setattr(repository, "create", create)
     data = make_pdf(encrypted=True) if encrypted else b"not a PDF"
-    with pytest.raises(ValueError):
+    with pytest.raises(PDFEncryptedError if encrypted else PDFInvalidError):
         service.create_document("cv.pdf", data)
     create.assert_not_called()
     assert_no_records(session)
@@ -143,10 +148,11 @@ def test_database_constraint_failure_rolls_back_partial_inserts(context, make_pd
 
     event.listen(session, "before_flush", duplicate_link)
     try:
-        with pytest.raises(IntegrityError):
+        with pytest.raises(PDFPersistenceError) as caught:
             service.create_document("cv.pdf", make_pdf(urls=("https://github.com/example",)))
     finally:
         event.remove(session, "before_flush", duplicate_link)
+    assert isinstance(caught.value.__cause__, IntegrityError)
     assert not session.in_transaction()
     assert_no_records(session)
 
@@ -165,3 +171,19 @@ def test_repeated_uploads_create_new_documents(context, make_pdf):
     service, _, _ = context
     data = make_pdf()
     assert service.create_document("cv.pdf", data).id != service.create_document("cv.pdf", data).id
+
+
+@pytest.mark.parametrize("unavailable", [True, False])
+def test_commit_database_errors_are_translated_with_cause_and_rollback(context, make_pdf, monkeypatch, unavailable):
+    from sqlalchemy.exc import OperationalError
+    from pdf.exceptions import PDFDatabaseUnavailableError
+
+    service, _, session = context
+    kind = OperationalError if unavailable else IntegrityError
+    original = kind("INSERT secret", {"text": "private-document-text"}, Exception("private-credential"))
+    monkeypatch.setattr(session, "commit", Mock(side_effect=original))
+    with pytest.raises(PDFDatabaseUnavailableError if unavailable else PDFPersistenceError) as caught:
+        service.create_document("cv.pdf", make_pdf(urls=("https://example.com/Case",)))
+    assert caught.value.__cause__ is original
+    assert not session.in_transaction()
+    assert_no_records(session)

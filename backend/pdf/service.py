@@ -16,6 +16,9 @@ def parse_cv(file_byte_stream: BytesIO):
 =======
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
+
+from pdf.exceptions import PDFEmptyUploadError, PDFInvalidFilenameError, translate_database_error
 from pdf.models import PDFDocument, PDFLink
 from pdf.parser import PDFParser
 from pdf.repository import PDFRepository
@@ -31,9 +34,9 @@ class PDFService:
 
     def create_document(self, filename: str, pdf_bytes: bytes) -> PDFDocumentRead:
         if not filename.strip():
-            raise ValueError("Filename must not be blank")
+            raise PDFInvalidFilenameError()
         if not pdf_bytes:
-            raise ValueError("PDF bytes must not be empty")
+            raise PDFEmptyUploadError()
 
         # Complete extraction before starting any database writes.
         parsed = PDFParser(BytesIO(pdf_bytes)).parse()
@@ -46,7 +49,10 @@ class PDFService:
             saved = self.repository.create(document)
             # Copy generated values after flush, before commit expires ORM data.
             response = PDFDocumentRead.model_validate(saved)
-            self.repository.session.commit()
+            try:
+                self.repository.session.commit()
+            except SQLAlchemyError as error:
+                raise translate_database_error(error) from error
         except Exception:
             self.repository.session.rollback()
             raise

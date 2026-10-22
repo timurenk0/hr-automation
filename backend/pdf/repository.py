@@ -1,8 +1,10 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
+from pdf.exceptions import translate_database_error
 from pdf.models import PDFDocument, PDFLink
 
 
@@ -18,9 +20,12 @@ class PDFRepository:
         Flush assigns IDs and database defaults and checks constraints. The
         caller must commit on success or roll back if persistence fails.
         """
-        self.session.add(document)
-        self.session.flush()
-        return document
+        try:
+            self.session.add(document)
+            self.session.flush()
+            return document
+        except SQLAlchemyError as error:
+            raise translate_database_error(error) from error
 
     def get_by_id(self, document_id: UUID) -> PDFDocument | None:
         """Fetch a document with its links loaded, or None if it is absent."""
@@ -29,7 +34,10 @@ class PDFRepository:
             .where(PDFDocument.id == document_id)
             .options(selectinload(PDFDocument.links))
         )
-        return self.session.scalars(statement).one_or_none()
+        try:
+            return self.session.scalars(statement).one_or_none()
+        except SQLAlchemyError as error:
+            raise translate_database_error(error) from error
 
     def get_links_by_document_id(self, document_id: UUID) -> list[PDFLink]:
         """Fetch scraper inputs without loading the document's text.
@@ -42,4 +50,7 @@ class PDFRepository:
             .where(PDFLink.document_id == document_id)
             .order_by(PDFLink.platform, PDFLink.id)
         )
-        return list(self.session.scalars(statement))
+        try:
+            return list(self.session.scalars(statement))
+        except SQLAlchemyError as error:
+            raise translate_database_error(error) from error

@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pdf.exceptions import PDFEncryptedError, PDFInvalidError
 from pdf.parser import PDFParser
 
 
@@ -54,7 +55,7 @@ def test_normalized_hostnames_preserve_original_urls(make_pdf, url, hostname):
 
 
 def test_encrypted_byte_stream_is_rejected(make_pdf):
-    with pytest.raises(ValueError, match="Encrypted PDFs"):
+    with pytest.raises(PDFEncryptedError):
         PDFParser(BytesIO(make_pdf(encrypted=True)))
 
 
@@ -75,3 +76,35 @@ def test_import_has_no_file_access_or_output(tmp_path):
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
     assert result.stderr == ""
+
+
+def test_invalid_pdf_preserves_parser_cause():
+    from pypdf.errors import PdfReadError
+
+    with pytest.raises(PDFInvalidError) as caught:
+        PDFParser(BytesIO(b"not a PDF"))
+    assert isinstance(caught.value.__cause__, PdfReadError)
+
+
+def test_extraction_errors_are_invalid_but_programming_errors_are_not(make_pdf, monkeypatch):
+    from pypdf._page import PageObject
+    from pypdf.errors import PdfReadError
+
+    original = PdfReadError("private-document-text")
+    parser = PDFParser(BytesIO(make_pdf()))
+    monkeypatch.setattr(PageObject, "extract_text", Mock(side_effect=original))
+    with pytest.raises(PDFInvalidError) as caught:
+        parser.parse()
+    assert caught.value.__cause__ is original
+    monkeypatch.setattr(PageObject, "extract_text", Mock(side_effect=ValueError("programming failure")))
+    with pytest.raises(ValueError):
+        parser.parse()
+
+
+def test_broken_link_reference_is_skipped(make_pdf):
+    from pypdf.errors import PdfReadError
+
+    parser = PDFParser(BytesIO(make_pdf()))
+    reference = Mock()
+    reference.get_object.side_effect = PdfReadError("broken annotation")
+    assert parser.extract_links({"/Annots": [reference]}) == []

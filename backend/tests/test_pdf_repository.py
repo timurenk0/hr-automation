@@ -5,6 +5,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from pdf.exceptions import PDFPersistenceError
+
 
 @pytest.fixture
 def session(monkeypatch):
@@ -101,8 +103,9 @@ def test_duplicate_link_failure_can_be_rolled_back_by_the_caller(session):
             PDFLink(platform="github", url="https://github.com/example"),
         ],
     )
-    with pytest.raises(IntegrityError):
+    with pytest.raises(PDFPersistenceError) as caught:
         repository.create(document)
+    assert isinstance(caught.value.__cause__, IntegrityError)
     session.rollback()
 
     assert repository.get_by_id(document.id) is None
