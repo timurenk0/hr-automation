@@ -3,7 +3,7 @@ import requests
 API_URL = "https://api.github.com"
 
 
-async def fetch_profile_data(username: str):
+async def fetch_profile(username: str):
     profile_response = requests.get(f"{API_URL}/users/{username}")
     profile_response.raise_for_status()
 

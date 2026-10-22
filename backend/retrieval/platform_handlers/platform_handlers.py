@@ -4,8 +4,6 @@ import requests
 
 
 async def github_handler(url: str, is_repo: bool):
-    API_URL = "https://api.github.com"
-
     username = url.split("/")[3]
 
     if not username:
@@ -19,7 +17,7 @@ async def github_handler(url: str, is_repo: bool):
 
         return repo_response
 
-    user_response = await fetch_profile_data(username)
+    user_response = await fetch_profile(username)
     return user_response
 
 
