@@ -3,12 +3,8 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Literal
 from io import BytesIO
-import re
 
-# the parser's platform-keyed links will need conversion into link records
-# in the service.
-
-# we will need to change a bit parser.
+# from backend.utility.types import ExtractedLink
 
 
 @dataclass(slots=True)
@@ -16,6 +12,12 @@ class ExtractedLink:
     url: str
     platform: str | None = None
     category: str | None = None
+
+
+# the parser's platform-keyed links will need conversion into link records
+# in the service.
+
+# we will need to change a bit parser.
 
 
 @dataclass(slots=True)

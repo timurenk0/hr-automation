@@ -1,0 +1,14 @@
+from io import BytesIO
+from pdf.parser import PDFParser
+from utility.text_normalizer import normalize_text
+
+
+def parse_cv(file_byte_stream: BytesIO):
+    result = PDFParser(file_byte_stream).parse()
+
+    links = result.links
+    content = result.content
+
+    clean_content = normalize_text(content)
+
+    return {"links": links, "content": clean_content}
