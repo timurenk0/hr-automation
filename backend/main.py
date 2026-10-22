@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import registerRoutes
+from routes.router import router
 
 app = FastAPI(
     title="hr-automation"
@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-registerRoutes(app)
+app.include_router(router)
 
 @app.get("/")
 async def root():
