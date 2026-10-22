@@ -1,19 +1,4 @@
 from io import BytesIO
-<<<<<<< HEAD
-from pdf.parser import PDFParser
-from utility.text_normalizer import normalize_text
-
-
-def parse_cv(file_byte_stream: BytesIO):
-    result = PDFParser(file_byte_stream).parse()
-
-    links = result.links
-    content = result.content
-
-    clean_content = normalize_text(content)
-
-    return {"links": links, "content": clean_content}
-=======
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -48,7 +33,13 @@ class PDFService:
         try:
             saved = self.repository.create(document)
             # Copy generated values after flush, before commit expires ORM data.
-            response = PDFDocumentRead.model_validate(saved)
+
+            # model_validate validates an ordinary python object or dict against
+            # a pydantic model and retuns a new, validated model instance 
+
+            # response returns pydantic object containing document information
+            # we could've make our own validation, but why if we have pydantic validation
+            response = PDFDocumentRead.model_validate(saved) 
             try:
                 self.repository.session.commit()
             except SQLAlchemyError as error:
@@ -63,4 +54,3 @@ class PDFService:
         if document is None:
             return None
         return PDFDocumentRead.model_validate(document)
->>>>>>> cdf1644f21c86da8b784c81d5b4aa84040a5f9da

@@ -1,9 +1,5 @@
 from dataclasses import dataclass
 from io import BytesIO
-<<<<<<< HEAD
-
-# from backend.utility.types import ExtractedLink
-=======
 from ipaddress import ip_address
 from pathlib import Path
 import re
@@ -11,7 +7,6 @@ from urllib.parse import urlsplit
 
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
->>>>>>> cdf1644f21c86da8b784c81d5b4aa84040a5f9da
 
 from pdf.exceptions import PDFEncryptedError, PDFInvalidError
 

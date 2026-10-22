@@ -11,8 +11,22 @@ from pdf.models import PDFDocument, PDFLink
 class PDFRepository:
     """PDF persistence using a caller-owned session and transaction."""
 
+    # A session here tracks database operations and 
+    # the Python model objects involved in them. 
+
+    # We supply the session from outside so the repository doesn't create its
+    # own connection or control its lifetime. Serveral operations 
+    # can therefore participate in the same transaction
+
+    # the function-based alternative would pass session into every function (i hate it)
+    # it works equally well, but repeats the parameter. 
+
     def __init__(self, session: Session):
         self.session = session
+
+    # session.add tells sqlalchemy to track it for persistence
+    # while flush is basically pushing new inserts to db. but the
+    # transaction is still uncommited and can be rolled back.
 
     def create(self, document: PDFDocument) -> PDFDocument:
         """Insert a document and its attached links without committing.
