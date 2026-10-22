@@ -1,19 +1,4 @@
 from io import BytesIO
-<<<<<<< HEAD
-from pdf.parser import PDFParser
-from utility.text_normalizer import normalize_text
-
-
-def parse_cv(file_byte_stream: BytesIO):
-    result = PDFParser(file_byte_stream).parse()
-
-    links = result.links
-    content = result.content
-
-    clean_content = normalize_text(content)
-
-    return {"links": links, "content": clean_content}
-=======
 from uuid import UUID
 
 from pdf.models import PDFDocument, PDFLink
@@ -40,7 +25,9 @@ class PDFService:
         document = PDFDocument(
             filename=filename,
             content=normalize_text(parsed.content),
-            links=[PDFLink(platform=link.platform, url=link.url) for link in parsed.links],
+            links=[
+                PDFLink(platform=link.platform, url=link.url) for link in parsed.links
+            ],
         )
         try:
             saved = self.repository.create(document)
@@ -57,4 +44,3 @@ class PDFService:
         if document is None:
             return None
         return PDFDocumentRead.model_validate(document)
->>>>>>> cdf1644f21c86da8b784c81d5b4aa84040a5f9da
