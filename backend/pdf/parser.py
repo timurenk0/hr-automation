@@ -1,14 +1,12 @@
-from pypdf import PdfReader
-from pathlib import Path
 from dataclasses import dataclass
-from typing import Literal
 from io import BytesIO
+from ipaddress import ip_address
+from pathlib import Path
 import re
+from urllib.parse import urlsplit
 
-# the parser's platform-keyed links will need conversion into link records
-# in the service.
-
-# we will need to change a bit parser.
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 
 @dataclass(slots=True)
@@ -24,6 +22,21 @@ class ExtractData:
     content: str = ""
 
 
+def _normalize_hostname(hostname: str) -> str:
+    """Validate a DNS hostname or IP literal without making network requests."""
+    try:
+        return str(ip_address(hostname))
+    except ValueError:
+        hostname = hostname.encode("idna").decode("ascii").lower().rstrip(".")
+        labels = hostname.split(".")
+        if len(hostname) > 253 or any(
+            not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+            for label in labels
+        ):
+            raise ValueError("Invalid hostname")
+        return hostname
+
+
 class PDFParser:
     def __init__(self, file: str | BytesIO):
         self.reader = self.__load_pdf(file)
@@ -32,82 +45,71 @@ class PDFParser:
     def __load_pdf(file: str | BytesIO) -> PdfReader:
         try:
             if isinstance(file, BytesIO):
-                return PdfReader(file)
-
-            basepath = Path(__file__).resolve().parent
-
-            path = Path(basepath / file).resolve(strict=True)
-
-            if not path.is_file():
-                raise ValueError("Provided path is not a file")
-
-            if path.suffix.lower() != ".pdf":
-                raise ValueError("Provided file is not PDF")
-
-            reader = PdfReader(str(path), strict=True)
-
+                reader = PdfReader(file)
+            else:
+                basepath = Path(__file__).resolve().parent
+                path = Path(basepath / file).resolve(strict=True)
+                if not path.is_file():
+                    raise ValueError("Provided path is not a file")
+                if path.suffix.lower() != ".pdf":
+                    raise ValueError("Provided file is not PDF")
+                reader = PdfReader(str(path), strict=True)
             if reader.is_encrypted:
                 raise ValueError("Encrypted PDFs are not supported")
-
             return reader
-        except (OSError, ValueError, Exception) as e:
-            raise ValueError(f"Invalid PDF filepath: {file}") from e
+        except (OSError, ValueError, PdfReadError) as error:
+            raise ValueError(f"Invalid PDF: {error}") from error
 
-    def extract_links(self, page_object) -> list[str]:
+    def extract_links(self, page_object) -> list[ExtractedLink]:
         links = []
-
         annotations = page_object.get("/Annots")
         if not annotations:
             return links
 
         for annotation_ref in annotations:
             annotation = annotation_ref.get_object()
-
-            if annotation.get("/Subtype") != "/Link":
+            if not isinstance(annotation, dict) or annotation.get("/Subtype") != "/Link":
                 continue
-
             action = annotation.get("/A")
-            if not action:
+            if action is None:
                 continue
-
-            if action.get("/S") != "/URI":
+            action = action.get_object()
+            if not isinstance(action, dict) or action.get("/S") != "/URI":
                 continue
-
             uri = action.get("/URI")
-
-            if uri:
-
-                # Disregard email adresses as external links
-                if "mailto" in uri:
+            if not isinstance(uri, str) or not uri:
+                continue
+            # urlsplit silently strips some control characters; reject them first.
+            if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in uri):
+                continue
+            try:
+                parsed = urlsplit(uri)
+                if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
                     continue
-
-                # Disregard phone numbers as external links
-                if "tel" in uri:
-                    continue
-
-                platform = uri.split("/")[2]
-
-                links.append(ExtractedLink(url=str(uri), platform=platform))
-
+                # Accessing port validates its syntax and range.
+                parsed.port
+                platform = _normalize_hostname(parsed.hostname)
+            except (ValueError, UnicodeError):
+                continue
+            links.append(ExtractedLink(url=str(uri), platform=platform))
         return links
 
     def parse(self) -> ExtractData:
-        content = ""
+        page_texts = []
         links: list[ExtractedLink] = []
-        seen_urls: set[str] = set()
-
+        seen_urls: set[tuple] = set()
         for page in self.reader.pages:
-            content += page.extract_text() or ""
-
+            page_texts.append(page.extract_text() or "")
             for link in self.extract_links(page):
-                normalized_link = link.url.lower().strip()
-
-                if normalized_link and normalized_link not in seen_urls:
-                    seen_urls.add(normalized_link)
+                parsed = urlsplit(link.url)
+                # Scheme and hostname are case-insensitive; paths, queries,
+                # fragments and credentials retain their original case.
+                identity = (
+                    parsed.scheme.lower(), link.platform, parsed.port,
+                    parsed.username, parsed.password, parsed.path,
+                    parsed.query, parsed.fragment,
+                )
+                if identity not in seen_urls:
+                    seen_urls.add(identity)
                     links.append(link)
-
-        return ExtractData(links=links, content=content)
-
-
-pdf = PDFParser("data/cv2.pdf").parse()
-print("Extract Object:", pdf.links)
+        return ExtractData(links=links, content="\n\n".join(page_texts))
