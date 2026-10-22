@@ -27,7 +27,7 @@ async def scrape_url(urls: list[str]):
 
 
 def main():
-    result = asyncio.run(scrape_url(["https://github.com/timurenk0/hr-automation"]))
+    result = asyncio.run(scrape_url(["https://github.com/timurenk0/spektr-cmms"]))
     print(result)
 
 

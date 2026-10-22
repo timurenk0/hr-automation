@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from platform_handlers.github_handler import fetch_profile_data, fetch_repo
+from platform_handlers.github_handler import fetch_profile, fetch_repo
 import requests
 
 

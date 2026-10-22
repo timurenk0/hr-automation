@@ -37,10 +37,20 @@ async def fetch_repo(username: str, repo_name: str):
     repo_response.raise_for_status()
     repo_response = repo_response.json()
 
+    repo_readme_response = requests.get(
+        f"https://raw.githubusercontent.com/{username}/{repo_name}/main/README.md"
+    )
+    repo_readme_response.raise_for_status()
+    repo_readme_data = repo_readme_response.content.decode("utf-8")
+
     repo_languages_response = requests.get(
         f"{API_URL}/repos/{username}/{repo_name}/languages"
     )
     repo_languages_response.raise_for_status()
     repo_languages_data = repo_languages_response.json()
 
-    return {"languages": repo_languages_data, "topics": repo_response["topics"] or None}
+    return {
+        "languages": repo_languages_data,
+        "topics": repo_response["topics"] or None,
+        "readme": repo_readme_data or None,
+    }
