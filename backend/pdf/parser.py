@@ -36,8 +36,18 @@ class ExtractData:
 # for example https://GitHub.COM/Alice turns into
 # hostname: github.com; platform: github
 
+"""
 
-def _normalize_hostname(hostname: str) -> str:
+It was added because our updated parser accepts links from any 
+valid hostname, including personal websites. We need consistent
+hostnames for grouping links and detecting duplicates. 
+urlsplit() separates URL components, but it doesnt fully validate them
+
+
+"""
+
+
+def _validate_and_normalize_hostname(hostname: str) -> str:
     """Validate a DNS hostname or IP literal without making network requests."""
     try:
         return str(ip_address(hostname))
@@ -126,7 +136,7 @@ class PDFParser:
 
                     # Accessing port validates its syntax and range.
                     parsed.port
-                    platform = _normalize_hostname(parsed.hostname)
+                    platform = _validate_and_normalize_hostname(parsed.hostname)
                 except (ValueError, UnicodeError):
                     continue
 
@@ -136,6 +146,12 @@ class PDFParser:
                 continue
 
         return links
+
+    # the difference between content = "", is just how
+    # strings are accumulated. In addition by adding \n\n we
+    # separate the pages. In addition repeated concatenation 
+    # generally require more compution than joining all in the end
+    # the complexity of concatenation increases with text size (so exponentially, ig bruhhh 🥲)
 
     def parse(self) -> ExtractData:
         try:
