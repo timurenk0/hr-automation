@@ -32,7 +32,11 @@ def context(monkeypatch):
     response = PDFDocumentRead(
         id=uuid4(), filename="cv.pdf", content="Developer",
         created_at=datetime.now(timezone.utc),
-        links=[PDFLinkRead(id=uuid4(), platform="github.com", url="https://github.com/Alice")],
+        links=[PDFLinkRead(
+            id=uuid4(),
+            platform="github.com",
+            url="https://github.com/Alice",
+        )],
     )
     service = Mock(spec=PDFService)
     service.create_document.return_value = response
@@ -47,6 +51,7 @@ def context(monkeypatch):
         uploads.append(self)
 
     monkeypatch.setattr(StarletteUploadFile, "__init__", track_upload)
+
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
             yield SimpleNamespace(
@@ -58,13 +63,21 @@ def context(monkeypatch):
 
 
 @pytest.mark.parametrize("content_type", [
-    "application/pdf", "application/octet-stream", "binary/octet-stream", "application/pdf; version=1.7",
+    "application/pdf",
+    "application/octet-stream",
+    "binary/octet-stream",
+    "application/pdf; version=1.7",
 ])
 def test_upload_success(context, content_type):
-    response = context.client.post("/api/upload-pdf", files={"pdf": ("cv.pdf", b"pdf bytes", content_type)})
+    response = context.client.post(
+        "/api/upload-pdf",
+        files={"pdf": ("cv.pdf", b"pdf bytes", content_type)},
+    )
+
     assert response.status_code == 201
     assert response.json() == context.response.model_dump(mode="json")
     context.service.create_document.assert_called_once_with("cv.pdf", b"pdf bytes")
+
     assert context.uploads and all(upload.file.closed for upload in context.uploads)
 
 
@@ -75,11 +88,22 @@ def test_upload_success(context, content_type):
     ("cv.pdf", b"pdf", "text/plain", 415),
     ("cv.pdf", b"x" * (10 * 1024 * 1024 + 1), "application/pdf", 413),
 ], ids=["blank-filename", "empty-input", "image", "text", "too-large"])
-def test_rejected_uploads_skip_service_and_close_files(context, filename, data, content_type, expected):
-    response = context.client.post("/api/upload-pdf", files={"pdf": (filename, data, content_type)})
+def test_rejected_uploads_skip_service_and_close_files(
+    context,
+    filename,
+    data,
+    content_type,
+    expected,
+):
+    response = context.client.post(
+        "/api/upload-pdf",
+        files={"pdf": (filename, data, content_type)},
+    )
+
     assert response.status_code == expected
     assert set(response.json()["error"]) == {"code", "message", "details"}
     context.service.create_document.assert_not_called()
+
     assert context.uploads and all(upload.file.closed for upload in context.uploads)
 
 
@@ -90,7 +114,11 @@ def test_missing_file(context):
 
 def test_upload_at_limit_is_accepted(context):
     data = b"x" * (10 * 1024 * 1024)
-    response = context.client.post("/api/upload-pdf", files={"pdf": ("cv.pdf", data, "application/pdf")})
+    response = context.client.post(
+        "/api/upload-pdf",
+        files={"pdf": ("cv.pdf", data, "application/pdf")},
+    )
+
     assert response.status_code == 201
     context.service.create_document.assert_called_once_with("cv.pdf", data)
 
@@ -99,12 +127,18 @@ def test_upload_at_limit_is_accepted(context):
     (10 * 1024 * 1024 + 100, 1, 413),
     (8, 999999999, 201),
 ])
-def test_read_is_bounded_and_reported_size_is_ignored(context, actual_size, reported_size, expected):
+def test_read_is_bounded_and_reported_size_is_ignored(
+    context,
+    actual_size,
+    reported_size,
+    expected,
+):
     from pdf.router import MAX_UPLOAD_BYTES, upload_pdf
 
     class TrackedStream(BytesIO):
         def read(self, size=-1):
             self.requested_size = size
+
             return super().read(size)
 
     stream = TrackedStream(b"x" * actual_size)
@@ -115,9 +149,11 @@ def test_read_is_bounded_and_reported_size_is_ignored(context, actual_size, repo
     if expected == 413:
         with pytest.raises(PDFUploadTooLargeError) as caught:
             upload_pdf(upload, context.service)
+
         context.service.create_document.assert_not_called()
     else:
         assert upload_pdf(upload, context.service) == context.response
+
     assert stream.requested_size == MAX_UPLOAD_BYTES + 1
     assert stream.closed
 
@@ -131,7 +167,11 @@ def test_malformed_and_encrypted_pdfs(context, make_pdf, encrypted):
 
     context.service.create_document.side_effect = parse
     data = make_pdf(encrypted=True) if encrypted else b"not a PDF"
-    response = context.client.post("/api/upload-pdf", files={"pdf": ("cv.pdf", data, "application/pdf")})
+    response = context.client.post(
+        "/api/upload-pdf",
+        files={"pdf": ("cv.pdf", data, "application/pdf")},
+    )
+
     assert response.status_code == 422
     assert response.json()["error"]["code"] == ("PDF_ENCRYPTED" if encrypted else "PDF_INVALID")
     assert all(upload.file.closed for upload in context.uploads)
@@ -140,10 +180,12 @@ def test_malformed_and_encrypted_pdfs(context, make_pdf, encrypted):
 def test_successful_and_missing_lookup(context):
     document_id = context.response.id
     response = context.client.get(f"/api/pdf/{document_id}")
+
     assert response.status_code == 200
     assert response.json() == context.response.model_dump(mode="json")
     context.service.get_document.assert_called_once_with(document_id)
     context.service.get_document.return_value = None
+
     assert context.client.get(f"/api/pdf/{uuid4()}").status_code == 404
 
 
@@ -175,7 +217,11 @@ def validation_error():
     (lambda: ValueError("private-document-text"), 500, "INTERNAL_ERROR"),
     (lambda: PdfReadError("private-document-text"), 500, "INTERNAL_ERROR"),
     (validation_error, 500, "INTERNAL_ERROR"),
-    (lambda: ResponseValidationError([{"input": "private-document-text"}]), 500, "INTERNAL_ERROR"),
+    (
+        lambda: ResponseValidationError([{"input": "private-document-text"}]),
+        500,
+        "INTERNAL_ERROR",
+    ),
     (lambda: RuntimeError("private-document-text"), 500, "INTERNAL_ERROR"),
 ])
 @pytest.mark.parametrize("operation", ["upload", "lookup"])
@@ -183,30 +229,49 @@ def test_safe_error_mapping(context, caplog, error_factory, expected, code, oper
     with caplog.at_level(logging.ERROR, logger="core.exception_handlers"):
         if operation == "upload":
             context.service.create_document.side_effect = error_factory()
-            response = context.client.post("/api/upload-pdf", files={"pdf": ("cv.pdf", b"pdf", "application/pdf")})
+            response = context.client.post(
+                "/api/upload-pdf",
+                files={"pdf": ("cv.pdf", b"pdf", "application/pdf")},
+            )
+
             assert all(upload.file.closed for upload in context.uploads)
         else:
             context.service.get_document.side_effect = error_factory()
             response = context.client.get(f"/api/pdf/{uuid4()}")
+
     assert response.status_code == expected
     assert response.json()["error"]["code"] == code
     assert response.json()["error"]["details"] == []
-    for sensitive in ("private-document-text", "private-credential", "SELECT secret", "INSERT secret"):
+
+    for sensitive in (
+        "private-document-text",
+        "private-credential",
+        "SELECT secret",
+        "INSERT secret",
+    ):
         assert sensitive not in response.text
         assert sensitive not in caplog.text
     if expected >= 500:
         assert "Request failed" in caplog.text
-        assert all(record.exc_info is None for record in caplog.records if record.name == "core.exception_handlers")
+        assert all(
+            record.exc_info is None
+            for record in caplog.records
+            if record.name == "core.exception_handlers"
+        )
 
 
 @pytest.mark.parametrize("operation", ["upload", "lookup"])
 def test_invalid_service_response_is_internal_failure(context, operation):
     if operation == "upload":
         context.service.create_document.return_value = {"id": "bad"}
-        response = context.client.post("/api/upload-pdf", files={"pdf": ("cv.pdf", b"pdf", "application/pdf")})
+        response = context.client.post(
+            "/api/upload-pdf",
+            files={"pdf": ("cv.pdf", b"pdf", "application/pdf")},
+        )
     else:
         context.service.get_document.return_value = {"id": "bad"}
         response = context.client.get(f"/api/pdf/{uuid4()}")
+
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "INTERNAL_ERROR"
 
@@ -221,6 +286,7 @@ def test_registration_and_health(context):
                     yield method, route.path
 
     counts = Counter(endpoints(context.app))
+
     assert counts["POST", "/upload-pdf"] + counts["POST", "/api/upload-pdf"] == 1
     assert counts["GET", "/pdf/{document_id}"] + counts["GET", "/api/pdf/{document_id}"] == 1
     assert counts["GET", "/health"] + counts["GET", "/api/health"] == 1
@@ -241,10 +307,15 @@ def test_real_dependency_chain_uses_injected_session(context, monkeypatch):
 
     def create(service, filename, data):
         assert service.repository.session is session
+
         return context.response
 
     monkeypatch.setattr(PDFService, "create_document", create)
-    assert context.client.post("/api/upload-pdf", files={"pdf": ("cv.pdf", b"pdf", "application/pdf")}).status_code == 201
+
+    assert context.client.post(
+        "/api/upload-pdf",
+        files={"pdf": ("cv.pdf", b"pdf", "application/pdf")},
+    ).status_code == 201
     session.commit.assert_not_called()
     session.close.assert_not_called()
 
@@ -254,15 +325,22 @@ def test_file_read_failure_propagates_and_upload_is_closed(context):
 
     stream = Mock()
     stream.read.side_effect = OSError("private-document-text")
-    upload = UploadFile(file=stream, filename="cv.pdf", headers=Headers({"content-type": "application/pdf"}))
+    upload = UploadFile(
+        file=stream,
+        filename="cv.pdf",
+        headers=Headers({"content-type": "application/pdf"}),
+    )
+
     with pytest.raises(OSError):
         upload_pdf(upload, context.service)
+
     stream.close.assert_called_once()
     context.service.create_document.assert_not_called()
 
 
 def test_real_request_validation_details_are_safe(context):
     response = context.client.get("/api/pdf/private-document-text")
+
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "REQUEST_VALIDATION_FAILED"
     assert response.json()["error"]["details"] == [{
@@ -270,6 +348,7 @@ def test_real_request_validation_details_are_safe(context):
     }]
     assert "private-document-text" not in response.text
     missing = context.client.post("/api/upload-pdf")
+
     assert missing.json()["error"]["details"] == [{
         "location": ["body", "pdf"], "message": "Field required.",
     }]
@@ -280,10 +359,13 @@ def test_openapi_documents_error_contract_and_all_pdf_codes(context):
     upload = document["paths"]["/api/upload-pdf"]["post"]["responses"]
     lookup = document["paths"]["/api/pdf/{document_id}"]["get"]["responses"]
     codes = set()
+
     for response in [*upload.values(), *lookup.values()]:
         content = response.get("content", {}).get("application/json", {})
+
         for example in content.get("examples", {}).values():
             codes.add(example["value"]["error"]["code"])
+
     assert codes == {
         "PDF_INVALID_FILENAME", "PDF_EMPTY_UPLOAD", "PDF_UNSUPPORTED_MEDIA_TYPE",
         "PDF_UPLOAD_TOO_LARGE", "PDF_INVALID", "PDF_ENCRYPTED", "PDF_NOT_FOUND",
@@ -291,6 +373,9 @@ def test_openapi_documents_error_contract_and_all_pdf_codes(context):
         "REQUEST_VALIDATION_FAILED",
     }
     schemas = document["components"]["schemas"]
+
     assert "error" in schemas["ErrorResponse"]["properties"]
     assert set(schemas["ErrorBody"]["properties"]) == {"code", "message", "details"}
-    assert upload["422"]["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorResponse")
+    assert upload["422"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/ErrorResponse")

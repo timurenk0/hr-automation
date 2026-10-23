@@ -6,7 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
-# follow the parser's output structure. 
+# follow the parser's output structure.
+
 
 class PDFDocument(Base):
     """Parsed PDF content; the original file is not stored in this table."""
@@ -20,7 +21,6 @@ class PDFDocument(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    
     links: Mapped[list["PDFLink"]] = relationship(
         back_populates="document", cascade="all, delete-orphan", passive_deletes=True
     )

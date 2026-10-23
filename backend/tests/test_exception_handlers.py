@@ -13,7 +13,11 @@ def client():
 
     @app.get("/framework/{status}")
     def framework(status: int):
-        raise HTTPException(status, detail="private-document-text", headers={"Retry-After": "30", "WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status,
+            detail="private-document-text",
+            headers={"Retry-After": "30", "WWW-Authenticate": "Bearer"},
+        )
 
     @app.post("/validation")
     def validation():
@@ -35,9 +39,13 @@ def client():
         yield client
 
 
-@pytest.mark.parametrize("status, code", [(401, "HTTP_401"), (429, "HTTP_429"), (503, "INTERNAL_ERROR")])
+@pytest.mark.parametrize(
+    "status, code",
+    [(401, "HTTP_401"), (429, "HTTP_429"), (503, "INTERNAL_ERROR")],
+)
 def test_framework_errors_preserve_headers_and_hide_raw_details(client, status, code):
     response = client.get(f"/framework/{status}")
+
     assert response.status_code == status
     assert response.json()["error"]["code"] == code
     assert response.headers["Retry-After"] == "30"
@@ -47,6 +55,7 @@ def test_framework_errors_preserve_headers_and_hide_raw_details(client, status, 
 
 def test_validation_details_have_only_location_and_safe_message(client):
     response = client.post("/validation")
+
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "REQUEST_VALIDATION_FAILED"
     assert response.json()["error"]["details"] == [{
@@ -61,8 +70,16 @@ def test_validation_details_have_only_location_and_safe_message(client):
     ("/unexpected", "get", "INTERNAL_ERROR", 500),
     ("/response-validation", "get", "INTERNAL_ERROR", 500),
 ])
-def test_framework_and_internal_failures_use_envelope(client, caplog, url, method, code, status):
+def test_framework_and_internal_failures_use_envelope(
+    client,
+    caplog,
+    url,
+    method,
+    code,
+    status,
+):
     response = getattr(client, method)(url)
+
     assert response.status_code == status
     assert response.json()["error"]["code"] == code
     assert response.json()["error"]["details"] == []

@@ -20,6 +20,7 @@ def test_multiple_links_custom_domains_and_case_sensitive_deduplication(make_pdf
         "https://tel.example/mailto/help",
     )
     parsed = PDFParser(BytesIO(make_pdf(urls=urls))).parse()
+
     assert [(link.platform, link.url) for link in parsed.links] == [
         ("github.com", urls[0]), ("github.com", urls[2]),
         ("portfolio.example", urls[4]), ("portfolio.example", urls[5]),
@@ -39,6 +40,7 @@ def test_multiple_links_custom_domains_and_case_sensitive_deduplication(make_pdf
 ])
 def test_malformed_and_non_web_urls_are_ignored(make_pdf, url):
     parsed = PDFParser(BytesIO(make_pdf(urls=(url,)))).parse()
+
     assert parsed.links == []
 
 
@@ -50,6 +52,7 @@ def test_malformed_and_non_web_urls_are_ignored(make_pdf, url):
 ])
 def test_normalized_hostnames_preserve_original_urls(make_pdf, url, hostname):
     link = PDFParser(BytesIO(make_pdf(urls=(url,)))).parse().links[0]
+
     assert link.platform == hostname
     assert link.url == url
 
@@ -62,8 +65,13 @@ def test_encrypted_byte_stream_is_rejected(make_pdf):
 def test_none_page_text_is_safe_and_page_separators_remain(make_pdf, monkeypatch):
     from pypdf._page import PageObject
 
-    monkeypatch.setattr(PageObject, "extract_text", Mock(side_effect=["first", None, "third"]))
+    monkeypatch.setattr(
+        PageObject,
+        "extract_text",
+        Mock(side_effect=["first", None, "third"]),
+    )
     parsed = PDFParser(BytesIO(make_pdf(texts=("", "", "")))).parse()
+
     assert parsed.content == "first\n\n\n\nthird"
 
 
@@ -73,6 +81,7 @@ def test_import_has_no_file_access_or_output(tmp_path):
         [sys.executable, "-c", "import pdf.parser"], cwd=tmp_path,
         env={**os.environ, "PYTHONPATH": backend}, capture_output=True, text=True,
     )
+
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
     assert result.stderr == ""
@@ -83,20 +92,31 @@ def test_invalid_pdf_preserves_parser_cause():
 
     with pytest.raises(PDFInvalidError) as caught:
         PDFParser(BytesIO(b"not a PDF"))
+
     assert isinstance(caught.value.__cause__, PdfReadError)
 
 
-def test_extraction_errors_are_invalid_but_programming_errors_are_not(make_pdf, monkeypatch):
+def test_extraction_errors_are_invalid_but_programming_errors_are_not(
+    make_pdf,
+    monkeypatch,
+):
     from pypdf._page import PageObject
     from pypdf.errors import PdfReadError
 
     original = PdfReadError("private-document-text")
     parser = PDFParser(BytesIO(make_pdf()))
     monkeypatch.setattr(PageObject, "extract_text", Mock(side_effect=original))
+
     with pytest.raises(PDFInvalidError) as caught:
         parser.parse()
+
     assert caught.value.__cause__ is original
-    monkeypatch.setattr(PageObject, "extract_text", Mock(side_effect=ValueError("programming failure")))
+    monkeypatch.setattr(
+        PageObject,
+        "extract_text",
+        Mock(side_effect=ValueError("programming failure")),
+    )
+
     with pytest.raises(ValueError):
         parser.parse()
 
@@ -107,4 +127,5 @@ def test_broken_link_reference_is_skipped(make_pdf):
     parser = PDFParser(BytesIO(make_pdf()))
     reference = Mock()
     reference.get_object.side_effect = PdfReadError("broken annotation")
+
     assert parser.extract_links({"/Annots": [reference]}) == []

@@ -11,6 +11,7 @@ from pypdf.generic import (
 def make_pdf():
     def build(texts=("First page", "Second page"), urls=(), encrypted=False):
         writer = PdfWriter()
+
         for text in texts:
             page = writer.add_blank_page(width=300, height=300)
             if text:
@@ -25,6 +26,7 @@ def make_pdf():
                 stream = DecodedStreamObject()
                 stream.set_data(f"BT /F1 12 Tf 10 100 Td ({text}) Tj ET".encode())
                 page[NameObject("/Contents")] = writer._add_object(stream)
+
             annotations = [
                 DictionaryObject({NameObject("/Subtype"): NameObject("/Link")}),
                 DictionaryObject({
@@ -32,6 +34,7 @@ def make_pdf():
                     NameObject("/A"): DictionaryObject(),
                 }),
             ]
+
             for url in urls:
                 annotations.append(DictionaryObject({
                     NameObject("/Subtype"): NameObject("/Link"),
@@ -40,12 +43,16 @@ def make_pdf():
                         NameObject("/URI"): TextStringObject(url),
                     }),
                 }))
+
             page[NameObject("/Annots")] = ArrayObject([
                 writer._add_object(annotation) for annotation in annotations
             ])
         if encrypted:
             writer.encrypt("secret")
+
         output = BytesIO()
         writer.write(output)
+
         return output.getvalue()
+
     return build

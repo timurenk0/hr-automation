@@ -18,7 +18,12 @@ class DriverError(Exception):
 
 
 def db_error(kind, sqlstate=None, invalidated=False):
-    return kind("SELECT private-document-text", {"secret": "private-credential"}, DriverError(sqlstate), connection_invalidated=invalidated)
+    return kind(
+        "SELECT private-document-text",
+        {"secret": "private-credential"},
+        DriverError(sqlstate),
+        connection_invalidated=invalidated,
+    )
 
 
 @pytest.mark.parametrize("error_factory, expected", [
@@ -35,8 +40,16 @@ def db_error(kind, sqlstate=None, invalidated=False):
     (lambda: db_error(IntegrityError, invalidated=True), PDFPersistenceError),
     (lambda: SQLAlchemyError("private-document-text"), PDFPersistenceError),
 ])
-@pytest.mark.parametrize("operation", ["create", "get_by_id", "get_links_by_document_id"])
-def test_repository_translates_operations_and_preserves_causes(monkeypatch, error_factory, expected, operation):
+@pytest.mark.parametrize(
+    "operation",
+    ["create", "get_by_id", "get_links_by_document_id"],
+)
+def test_repository_translates_operations_and_preserves_causes(
+    monkeypatch,
+    error_factory,
+    expected,
+    operation,
+):
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://test:test@localhost/test")
     from pdf.models import PDFDocument
     from pdf.repository import PDFRepository
@@ -49,8 +62,10 @@ def test_repository_translates_operations_and_preserves_causes(monkeypatch, erro
     else:
         session.scalars.side_effect = original
         argument = uuid4()
+
     with pytest.raises(expected) as caught:
         getattr(PDFRepository(session), operation)(argument)
+
     assert caught.value.__cause__ is original
     session.commit.assert_not_called()
     session.rollback.assert_not_called()

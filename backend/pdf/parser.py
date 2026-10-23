@@ -30,6 +30,13 @@ class ExtractData:
     content: str = ""
 
 
+# checks a link's hostname and gives
+# it a consistent representation
+
+# for example https://GitHub.COM/Alice turns into
+# hostname: github.com; platform: github
+
+
 def _normalize_hostname(hostname: str) -> str:
     """Validate a DNS hostname or IP literal without making network requests."""
     try:
@@ -37,11 +44,13 @@ def _normalize_hostname(hostname: str) -> str:
     except ValueError:
         hostname = hostname.encode("idna").decode("ascii").lower().rstrip(".")
         labels = hostname.split(".")
+
         if len(hostname) > 253 or any(
             not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
             for label in labels
         ):
             raise ValueError("Invalid hostname")
+
         return hostname
 
 
@@ -57,13 +66,17 @@ class PDFParser:
             else:
                 basepath = Path(__file__).resolve().parent
                 path = Path(basepath / file).resolve(strict=True)
+
                 if not path.is_file():
                     raise PDFInvalidError()
                 if path.suffix.lower() != ".pdf":
                     raise PDFInvalidError()
+
                 reader = PdfReader(str(path), strict=True)
+
             if reader.is_encrypted:
                 raise PDFEncryptedError()
+
             return reader
         except (OSError, PdfReadError) as error:
             raise PDFInvalidError() from error
@@ -71,39 +84,57 @@ class PDFParser:
     def extract_links(self, page_object) -> list[ExtractedLink]:
         links = []
         annotations = page_object.get("/Annots")
+
         if not annotations:
             return links
 
         for annotation_ref in annotations:
             try:
                 annotation = annotation_ref.get_object()
-                if not isinstance(annotation, dict) or annotation.get("/Subtype") != "/Link":
+                if (
+                    not isinstance(annotation, dict)
+                    or annotation.get("/Subtype") != "/Link"
+                ):
                     continue
+
                 action = annotation.get("/A")
                 if action is None:
                     continue
+
                 action = action.get_object()
                 if not isinstance(action, dict) or action.get("/S") != "/URI":
                     continue
+
                 uri = action.get("/URI")
                 if not isinstance(uri, str) or not uri:
                     continue
+
                 # urlsplit silently strips some control characters; reject them first.
-                if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in uri):
+                if any(
+                    char.isspace() or ord(char) < 32 or ord(char) == 127
+                    for char in uri
+                ):
                     continue
+
                 try:
                     parsed = urlsplit(uri)
-                    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+                    if (
+                        parsed.scheme.lower() not in ("http", "https")
+                        or not parsed.hostname
+                    ):
                         continue
+
                     # Accessing port validates its syntax and range.
                     parsed.port
                     platform = _normalize_hostname(parsed.hostname)
                 except (ValueError, UnicodeError):
                     continue
+
                 links.append(ExtractedLink(url=str(uri), platform=platform))
             except PdfReadError:
                 # A broken individual annotation does not invalidate the PDF.
                 continue
+
         return links
 
     def parse(self) -> ExtractData:
@@ -111,20 +142,30 @@ class PDFParser:
             page_texts = []
             links: list[ExtractedLink] = []
             seen_urls: set[tuple] = set()
+
             for page in self.reader.pages:
                 page_texts.append(page.extract_text() or "")
+
                 for link in self.extract_links(page):
                     parsed = urlsplit(link.url)
+
                     # Scheme and hostname are case-insensitive; paths, queries,
                     # fragments and credentials retain their original case.
                     identity = (
-                        parsed.scheme.lower(), link.platform, parsed.port,
-                        parsed.username, parsed.password, parsed.path,
-                        parsed.query, parsed.fragment,
+                        parsed.scheme.lower(),
+                        link.platform,
+                        parsed.port,
+                        parsed.username,
+                        parsed.password,
+                        parsed.path,
+                        parsed.query,
+                        parsed.fragment,
                     )
+
                     if identity not in seen_urls:
                         seen_urls.add(identity)
                         links.append(link)
+
             return ExtractData(links=links, content="\n\n".join(page_texts))
         except PdfReadError as error:
             raise PDFInvalidError() from error

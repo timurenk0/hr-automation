@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from core.exception_handlers import error_responses, register_exception_handlers
 from routes.router import router
+
 
 app = FastAPI(
     title="hr-automation",
@@ -23,6 +25,7 @@ app.add_middleware(
 
 app.include_router(router)
 
+
 @app.get("/")
 async def root():
-    return { "message": "hello from backend" }
+    return {"message": "hello from backend"}

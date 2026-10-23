@@ -8,6 +8,7 @@ async def github_handler(url: str, is_repo: bool):
 
     if not username:
         print("[ERROR] Corrupt Github URL (no username found)")
+
         return
 
     if is_repo:
@@ -18,6 +19,7 @@ async def github_handler(url: str, is_repo: bool):
         return repo_response
 
     user_response = await fetch_profile(username)
+
     return user_response
 
 

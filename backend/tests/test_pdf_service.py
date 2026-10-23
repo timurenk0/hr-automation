@@ -21,6 +21,7 @@ def context(monkeypatch):
 
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
+
     try:
         with Session(engine, autoflush=False) as session:
             repository = PDFRepository(session)
@@ -47,20 +48,27 @@ def test_create_normalizes_and_commits_document_and_all_links(context, make_pdf)
     response = service.create_document("cv.pdf", make_pdf(
         texts=("  Python   developer  ", "  Projects  "), urls=urls,
     ))
+
     assert not session.in_transaction()
     assert response.content == "Python developer\n\nProjects"
     assert response.filename == "cv.pdf"
     assert response.created_at is not None
     assert [(link.platform, link.url) for link in response.links] == [
-        ("github.com", urls[0]), ("github.com", urls[1]), ("portfolio.example", urls[3]),
+        (
+            "github.com",
+            urls[0],
+        ), ("github.com", urls[1]), ("portfolio.example", urls[3]),
     ]
     assert len({link.id for link in response.links}) == 3
+
     with Session(session.get_bind()) as other:
         assert other.get(PDFDocument, response.id).content == response.content
         assert {link.id for link in other.scalars(select(PDFLink))} == {
             link.id for link in response.links
         }
+
     session.close()
+
     assert response.model_dump(mode="json")["links"][0]["id"]
 
 
@@ -76,6 +84,7 @@ def test_unicode_normalization_and_category_is_unused(context, monkeypatch):
     parser.parse.return_value = parsed
     monkeypatch.setattr("pdf.service.PDFParser", Mock(return_value=parser))
     response = service.create_document("cv.pdf", b"stubbed parser input")
+
     assert response.content == "Caf\u00e9 developer\nPython"
     assert set(response.links[0].model_dump()) == {"id", "platform", "url"}
 
@@ -83,18 +92,29 @@ def test_unicode_normalization_and_category_is_unused(context, monkeypatch):
 def test_empty_content_and_links_are_allowed(context, make_pdf):
     service, _, _ = context
     response = service.create_document("blank.pdf", make_pdf(texts=("",)))
+
     assert response.content == ""
     assert response.links == []
 
 
-@pytest.mark.parametrize("filename, data", [("", b"pdf"), (" \t", b"pdf"), ("cv.pdf", b"")])
-def test_empty_input_never_reaches_parser_or_repository(context, monkeypatch, filename, data):
+@pytest.mark.parametrize(
+    "filename, data",
+    [("", b"pdf"), (" \t", b"pdf"), ("cv.pdf", b"")],
+)
+def test_empty_input_never_reaches_parser_or_repository(
+    context,
+    monkeypatch,
+    filename,
+    data,
+):
     service, repository, session = context
     parser, create = Mock(), Mock()
     monkeypatch.setattr("pdf.service.PDFParser", parser)
     monkeypatch.setattr(repository, "create", create)
+
     with pytest.raises(PDFInvalidFilenameError if not filename.strip() else PDFEmptyUploadError):
         service.create_document(filename, data)
+
     parser.assert_not_called()
     create.assert_not_called()
     assert_no_records(session)
@@ -106,14 +126,21 @@ def test_invalid_pdf_produces_no_writes(context, make_pdf, monkeypatch, encrypte
     create = Mock()
     monkeypatch.setattr(repository, "create", create)
     data = make_pdf(encrypted=True) if encrypted else b"not a PDF"
+
     with pytest.raises(PDFEncryptedError if encrypted else PDFInvalidError):
         service.create_document("cv.pdf", data)
+
     create.assert_not_called()
     assert_no_records(session)
 
 
 @pytest.mark.parametrize("failure_point", ["write", "commit", "response"])
-def test_failures_after_flush_are_rolled_back(context, make_pdf, monkeypatch, failure_point):
+def test_failures_after_flush_are_rolled_back(
+    context,
+    make_pdf,
+    monkeypatch,
+    failure_point,
+):
     service, repository, session = context
     failure = RuntimeError("injected failure")
     if failure_point == "write":
@@ -127,9 +154,17 @@ def test_failures_after_flush_are_rolled_back(context, make_pdf, monkeypatch, fa
     elif failure_point == "commit":
         monkeypatch.setattr(session, "commit", Mock(side_effect=failure))
     else:
-        monkeypatch.setattr("pdf.service.PDFDocumentRead.model_validate", Mock(side_effect=failure))
+        monkeypatch.setattr(
+            "pdf.service.PDFDocumentRead.model_validate",
+            Mock(side_effect=failure),
+        )
+
     with pytest.raises(RuntimeError) as caught:
-        service.create_document("cv.pdf", make_pdf(urls=("https://github.com/example",)))
+        service.create_document(
+            "cv.pdf",
+            make_pdf(urls=("https://github.com/example",)),
+        )
+
     assert caught.value is failure
     assert not session.in_transaction()
     assert_no_records(session)
@@ -147,11 +182,16 @@ def test_database_constraint_failure_rolls_back_partial_inserts(context, make_pd
                 document.links.append(PDFLink(platform=first.platform, url=first.url))
 
     event.listen(session, "before_flush", duplicate_link)
+
     try:
         with pytest.raises(PDFPersistenceError) as caught:
-            service.create_document("cv.pdf", make_pdf(urls=("https://github.com/example",)))
+            service.create_document(
+                "cv.pdf",
+                make_pdf(urls=("https://github.com/example",)),
+            )
     finally:
         event.remove(session, "before_flush", duplicate_link)
+
     assert isinstance(caught.value.__cause__, IntegrityError)
     assert not session.in_transaction()
     assert_no_records(session)
@@ -159,31 +199,53 @@ def test_database_constraint_failure_rolls_back_partial_inserts(context, make_pd
 
 def test_existing_and_missing_reads_and_closed_session(context, make_pdf):
     service, _, session = context
-    created = service.create_document("cv.pdf", make_pdf(urls=("https://example.com/Profile",)))
+    created = service.create_document(
+        "cv.pdf",
+        make_pdf(urls=("https://example.com/Profile",)),
+    )
     session.expunge_all()
     fetched = service.get_document(created.id)
+
     assert service.get_document(uuid4()) is None
     session.close()
+
     assert fetched.model_dump(mode="json") == created.model_dump(mode="json")
 
 
 def test_repeated_uploads_create_new_documents(context, make_pdf):
     service, _, _ = context
     data = make_pdf()
-    assert service.create_document("cv.pdf", data).id != service.create_document("cv.pdf", data).id
+
+    assert service.create_document(
+        "cv.pdf",
+        data,
+    ).id != service.create_document("cv.pdf", data).id
 
 
 @pytest.mark.parametrize("unavailable", [True, False])
-def test_commit_database_errors_are_translated_with_cause_and_rollback(context, make_pdf, monkeypatch, unavailable):
+def test_commit_database_errors_are_translated_with_cause_and_rollback(
+    context,
+    make_pdf,
+    monkeypatch,
+    unavailable,
+):
     from sqlalchemy.exc import OperationalError
     from pdf.exceptions import PDFDatabaseUnavailableError
 
     service, _, session = context
     kind = OperationalError if unavailable else IntegrityError
-    original = kind("INSERT secret", {"text": "private-document-text"}, Exception("private-credential"))
+    original = kind(
+        "INSERT secret",
+        {"text": "private-document-text"},
+        Exception("private-credential"),
+    )
     monkeypatch.setattr(session, "commit", Mock(side_effect=original))
-    with pytest.raises(PDFDatabaseUnavailableError if unavailable else PDFPersistenceError) as caught:
+
+    with pytest.raises(
+        PDFDatabaseUnavailableError if unavailable else PDFPersistenceError
+    ) as caught:
         service.create_document("cv.pdf", make_pdf(urls=("https://example.com/Case",)))
+
     assert caught.value.__cause__ is original
     assert not session.in_transaction()
     assert_no_records(session)

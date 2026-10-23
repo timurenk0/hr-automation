@@ -19,9 +19,11 @@ class Settings(BaseSettings):
 
 # @lru_cache remembers a functions's return value so repeated calls with the same
 # arguments can reuse it (basically as tanstack cache)
-# since the function takes no arguments, it only need one cache entry. Btw each python process has its own cache. 
-# environment changes won't be picked up until you restart the process or call get_settings.cache_clear()
-# when cache fills up, it removes the entry that hasn't been used for the longest time. 
+# since the function takes no arguments, it only need one cache entry.
+# Btw each python process has its own cache.
+# environment changes won't be picked up until you restart the process
+# or call get_settings.cache_clear()
+# when cache fills up, it removes the entry that hasn't been used for the longest time.
 # the default capacity is 128 argument combinations
 
 @lru_cache

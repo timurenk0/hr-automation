@@ -11,15 +11,15 @@ from pdf.models import PDFDocument, PDFLink
 class PDFRepository:
     """PDF persistence using a caller-owned session and transaction."""
 
-    # A session here tracks database operations and 
-    # the Python model objects involved in them. 
+    # A session here tracks database operations and
+    # the Python model objects involved in them.
 
     # We supply the session from outside so the repository doesn't create its
-    # own connection or control its lifetime. Serveral operations 
+    # own connection or control its lifetime. Serveral operations
     # can therefore participate in the same transaction
 
     # the function-based alternative would pass session into every function (i hate it)
-    # it works equally well, but repeats the parameter. 
+    # it works equally well, but repeats the parameter.
 
     def __init__(self, session: Session):
         self.session = session
@@ -37,6 +37,7 @@ class PDFRepository:
         try:
             self.session.add(document)
             self.session.flush()
+
             return document
         except SQLAlchemyError as error:
             raise translate_database_error(error) from error
@@ -48,6 +49,7 @@ class PDFRepository:
             .where(PDFDocument.id == document_id)
             .options(selectinload(PDFDocument.links))
         )
+
         try:
             return self.session.scalars(statement).one_or_none()
         except SQLAlchemyError as error:
@@ -64,6 +66,7 @@ class PDFRepository:
             .where(PDFLink.document_id == document_id)
             .order_by(PDFLink.platform, PDFLink.id)
         )
+
         try:
             return list(self.session.scalars(statement))
         except SQLAlchemyError as error:

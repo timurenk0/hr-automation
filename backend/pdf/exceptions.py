@@ -1,6 +1,11 @@
 from sqlalchemy.exc import (
-    DBAPIError, DisconnectionError, IntegrityError, InterfaceError, OperationalError,
-    SQLAlchemyError, TimeoutError as SQLAlchemyTimeoutError,
+    DBAPIError,
+    DisconnectionError,
+    IntegrityError,
+    InterfaceError,
+    OperationalError,
+    SQLAlchemyError,
+    TimeoutError as SQLAlchemyTimeoutError,
 )
 
 from core.exception_handlers import ApplicationError
@@ -68,15 +73,21 @@ def translate_database_error(error: SQLAlchemyError) -> ApplicationError:
     """
     if isinstance(error, IntegrityError):
         return PDFPersistenceError()
-    
+
     unavailable = isinstance(error, (DisconnectionError, SQLAlchemyTimeoutError))
 
     if isinstance(error, DBAPIError):
-        sqlstate = getattr(error.orig, "sqlstate", None) or getattr(error.orig, "pgcode", None)
+        sqlstate = getattr(error.orig, "sqlstate", None) or getattr(
+            error.orig, "pgcode", None
+        )
+
         unavailable = error.connection_invalidated or (
             isinstance(error, (OperationalError, InterfaceError))
-            and (sqlstate is None or sqlstate.startswith("08") or sqlstate in {
-                "57P01", "57P02", "57P03", "53300",
-            })
+            and (
+                sqlstate is None
+                or sqlstate.startswith("08")
+                or sqlstate in {"57P01", "57P02", "57P03", "53300"}
+            )
         )
+
     return PDFDatabaseUnavailableError() if unavailable else PDFPersistenceError()
